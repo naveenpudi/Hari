@@ -17,7 +17,7 @@ pipeline {
 
         stage('Create ECR Repo (if not exists)') {
             steps {
-                withAWS(credentials: 'aws-cred-id', region: "${AWS_REGION}") {
+                withAWS(credentials: 'AWS', region: "${AWS_REGION}") {
                     script {
                         sh '''
                         echo "Checking for existing ECR repo..."
@@ -56,7 +56,7 @@ pipeline {
 
         stage('Login to ECR') {
             steps {
-                withAWS(credentials: 'aws-cred-id', region: "${AWS_REGION}") {
+                withAWS(credentials: 'AWS', region: "${AWS_REGION}") {
                     sh '''
                     aws ecr get-login-password \
                         | docker login --username AWS --password-stdin $ECR_REPO
@@ -73,7 +73,7 @@ pipeline {
 
         stage('Deploy to EKS') {
             steps {
-                withAWS(credentials: 'aws-cred-id', region: "${AWS_REGION}") {
+                withAWS(credentials: 'AWS', region: "${AWS_REGION}") {
                     sh '''
                     aws eks update-kubeconfig --name $CLUSTER_NAME
                     sed -i "s|IMAGE_PLACEHOLDER|${ECR_REPO}:${BUILD_NUMBER}|g" Deployment.yaml
