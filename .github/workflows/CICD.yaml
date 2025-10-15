@@ -37,11 +37,4 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: us-east-1  # replace with your region
 
-    # 5. Deploy to ECS
-    - name: Deploy to ECS
-      run: |
-        # Replace with your ECS cluster and service names
-        aws ecs update-service \
-          --cluster your-ecs-cluster-name \
-          --service your-ecs-service-name \
-          --force-new-deployment
+
