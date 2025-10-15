@@ -24,6 +24,7 @@ pipeline {
                     script {
                         env.ECR_REPO = sh(
                             script: '''
+                                set -e
                                 if ! aws ecr describe-repositories --repository-names $REPO_NAME --region $AWS_REGION > /dev/null 2>&1; then
                                     echo "ECR repo not found. Creating..."
                                     aws ecr create-repository --repository-name $REPO_NAME --region $AWS_REGION
@@ -40,31 +41,22 @@ pipeline {
             }
         }
 
-        stage('Build Docker Image') {
-            steps {
-                script {
-                    docker.build("${env.ECR_REPO}:${BUILD_NUMBER}")
-                }
-            }
-        }
-
-        stage('Login to ECR') {
+        stage('Build and Push Docker Image') {
             steps {
                 withCredentials([[
                     $class: 'AmazonWebServicesCredentialsBinding',
                     credentialsId: 'AWS'
                 ]]) {
-                    sh '''
-                    aws ecr get-login-password --region $AWS_REGION \
-                    | docker login --username AWS --password-stdin $ECR_REPO
-                    '''
-                }
-            }
-        }
+                    script {
+                        // Build Docker image
+                        def image = docker.build("${env.ECR_REPO}:${BUILD_NUMBER}")
 
-        stage('Push Image to ECR') {
-            steps {
-                sh "docker push ${env.ECR_REPO}:${BUILD_NUMBER}"
+                        // Push image to ECR
+                        docker.withRegistry("https://${env.ECR_REPO}", 'AWS') {
+                            image.push()
+                        }
+                    }
+                }
             }
         }
 
@@ -75,11 +67,12 @@ pipeline {
                     credentialsId: 'AWS'
                 ]]) {
                     sh '''
-                    aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME
-                    sed -i "s|IMAGE_PLACEHOLDER|${ECR_REPO}:${BUILD_NUMBER}|g" Deployment.yaml
-                    kubectl apply -f Deployment.yaml
-                    kubectl apply -f Service.yaml
-                    kubectl rollout status deployment/hari-app
+                        set -e
+                        aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME
+                        sed -i "s|IMAGE_PLACEHOLDER|${ECR_REPO}:${BUILD_NUMBER}|g" Deployment.yaml
+                        kubectl apply -f Deployment.yaml
+                        kubectl apply -f Service.yaml
+                        kubectl rollout status deployment/hari-app --timeout=120s
                     '''
                 }
             }
