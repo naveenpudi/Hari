@@ -19,7 +19,7 @@ pipeline {
             steps {
                 withCredentials([[
                     $class: 'AmazonWebServicesCredentialsBinding',
-                    credentialsId: 'AKIAWWUMBFWCCZRV4IEJ'
+                    credentialsId: 'AWS'  // Use your Jenkins Credential ID
                 ]]) {
                     script {
                         sh '''
@@ -61,7 +61,7 @@ pipeline {
             steps {
                 withCredentials([[
                     $class: 'AmazonWebServicesCredentialsBinding',
-                    credentialsId: 'AKIAWWUMBFWCCZRV4IEJ'
+                    credentialsId: 'AWS'  // Use your Jenkins Credential ID
                 ]]) {
                     sh '''
                     aws ecr get-login-password --region $AWS_REGION \
@@ -81,7 +81,7 @@ pipeline {
             steps {
                 withCredentials([[
                     $class: 'AmazonWebServicesCredentialsBinding',
-                    credentialsId: 'AKIAWWUMBFWCCZRV4IEJ'
+                    credentialsId: 'AWS'  // Use your Jenkins Credential ID
                 ]]) {
                     sh '''
                     aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME
