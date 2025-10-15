@@ -2,60 +2,55 @@ pipeline {
     agent any
 
     environment {
-        AWS_REGION = 'ap-south-1'
-        ECR_REPO = '460928920964.dkr.ecr.ap-south-1.amazonaws.com/hii'
-        IMAGE_TAG = "${env.BUILD_NUMBER}"
-        KUBE_CLUSTER = 'exciting-monster-1760520550'
-        DEPLOY_PATH = '/home/jenkins/deploy' // path where deployment.yaml and service.yaml are stored
+        ECR_REPO = "460928920964.dkr.ecr.ap-south-1.amazonaws.com/hii"
+        IMAGE_TAG = "${BUILD_NUMBER}"
+        AWS_REGION = "ap-south-1"
+        KUBE_CLUSTER = "exciting-monster-1760520550"
     }
 
     stages {
         stage('Checkout') {
             steps {
-                git 'https://github.com/naveenpudi/Hari.git'
+                git branch: 'main', url: 'https://github.com/naveenpudi/Hari.git'
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh "docker build -t $ECR_REPO:$IMAGE_TAG ."
+                sh 'docker build -t $ECR_REPO:$IMAGE_TAG .'
             }
         }
 
-        stage('Login to ECR') {
+        stage('Login to ECR & Push') {
             steps {
                 withAWS(credentials: 'AWS', region: "${AWS_REGION}") {
-                    sh "aws ecr get-login-password | docker login --username AWS --password-stdin $ECR_REPO"
+                    sh '''
+                        aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REPO}
+                        docker push ${ECR_REPO}:${IMAGE_TAG}
+                    '''
                 }
-            }
-        }
-
-        stage('Push Docker Image') {
-            steps {
-                sh "docker push $ECR_REPO:$IMAGE_TAG"
             }
         }
 
         stage('Configure kubectl') {
             steps {
                 withAWS(credentials: 'AWS', region: "${AWS_REGION}") {
-                    sh "aws eks --region $AWS_REGION update-kubeconfig --name $KUBE_CLUSTER"
+                    sh 'aws eks update-kubeconfig --region ${AWS_REGION} --name ${KUBE_CLUSTER}'
                 }
             }
         }
 
         stage('Deploy to EKS') {
             steps {
-                script {
-                    // Update the image in the deployment file dynamically
-                    sh "kubectl set image -f deployment.yaml my-app=$ECR_REPO:$IMAGE_TAG --record"
-                    
-                    // Apply the existing deployment and service YAML files
-                    sh "kubectl apply -f deployment.yaml"
-                    sh "kubectl apply -f service.yaml"
-                    
-                    // Wait for rollout to complete
-                    sh "kubectl rollout status deployment/my-app"
+                withAWS(credentials: 'AWS', region: "${AWS_REGION}") {
+                    script {
+                        sh '''
+                            kubectl set image -f deployment.yaml my-app=${ECR_REPO}:${IMAGE_TAG} --local -o yaml > temp-deployment.yaml
+                            kubectl apply -f temp-deployment.yaml
+                            kubectl apply -f service.yaml
+                            kubectl rollout status deployment/my-app
+                        '''
+                    }
                 }
             }
         }
