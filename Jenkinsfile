@@ -3,6 +3,8 @@ pipeline {
 
     environment {
         AWS_REGION = 'ap-south-1'
+        AWS_ACCESS_KEY_ID = '<YOUR_AWS_ACCESS_KEY>'
+        AWS_SECRET_ACCESS_KEY = '<YOUR_AWS_SECRET_KEY>'
         REPO_NAME = 'madhu'
         CLUSTER_NAME = 'eksctl-exciting-monster-1760520550-cluster'
     }
@@ -17,21 +19,19 @@ pipeline {
 
         stage('Create ECR Repo (if not exists)') {
             steps {
-                withAWS(credentials: 'AWS', region: "${AWS_REGION}") {
-                    script {
-                        sh '''
-                        echo "Checking for existing ECR repo..."
-                        if ! aws ecr describe-repositories --repository-names $REPO_NAME > /dev/null 2>&1; then
-                            echo "ECR repo not found. Creating..."
-                            aws ecr create-repository --repository-name $REPO_NAME
-                        else
-                            echo "ECR repo already exists."
-                        fi
+                script {
+                    sh '''
+                    echo "Checking for existing ECR repo..."
+                    if ! aws ecr describe-repositories --repository-names $REPO_NAME --region $AWS_REGION > /dev/null 2>&1; then
+                        echo "ECR repo not found. Creating..."
+                        aws ecr create-repository --repository-name $REPO_NAME --region $AWS_REGION
+                    else
+                        echo "ECR repo already exists."
+                    fi
 
-                        export ECR_REPO=$(aws ecr describe-repositories --repository-names $REPO_NAME --query "repositories[0].repositoryUri" --output text)
-                        echo "ECR_REPO=$ECR_REPO" >> env.properties
-                        '''
-                    }
+                    export ECR_REPO=$(aws ecr describe-repositories --repository-names $REPO_NAME --region $AWS_REGION --query "repositories[0].repositoryUri" --output text)
+                    echo "ECR_REPO=$ECR_REPO" >> env.properties
+                    '''
                 }
             }
         }
@@ -56,12 +56,10 @@ pipeline {
 
         stage('Login to ECR') {
             steps {
-                withAWS(credentials: 'AWS', region: "${AWS_REGION}") {
-                    sh '''
-                    aws ecr get-login-password \
-                        | docker login --username AWS --password-stdin $ECR_REPO
-                    '''
-                }
+                sh '''
+                aws ecr get-login-password --region $AWS_REGION \
+                | docker login --username AWS --password-stdin $ECR_REPO
+                '''
             }
         }
 
@@ -73,15 +71,13 @@ pipeline {
 
         stage('Deploy to EKS') {
             steps {
-                withAWS(credentials: 'AWS', region: "${AWS_REGION}") {
-                    sh '''
-                    aws eks update-kubeconfig --name $CLUSTER_NAME
-                    sed -i "s|IMAGE_PLACEHOLDER|${ECR_REPO}:${BUILD_NUMBER}|g" Deployment.yaml
-                    kubectl apply -f Deployment.yaml
-                    kubectl apply -f Service.yaml
-                    kubectl rollout status deployment/hari-app
-                    '''
-                }
+                sh '''
+                aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME
+                sed -i "s|IMAGE_PLACEHOLDER|${ECR_REPO}:${BUILD_NUMBER}|g" Deployment.yaml
+                kubectl apply -f Deployment.yaml
+                kubectl apply -f Service.yaml
+                kubectl rollout status deployment/hari-app
+                '''
             }
         }
     }
