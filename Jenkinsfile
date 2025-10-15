@@ -24,7 +24,7 @@ pipeline {
 
         stage('Login to ECR') {
             steps {
-                withAWS(credentials: 'aws-jenkins-credential-id', region: "${AWS_REGION}") {
+                withAWS(credentials: 'AWS', region: "${AWS_REGION}") {
                     sh "aws ecr get-login-password | docker login --username AWS --password-stdin $ECR_REPO"
                 }
             }
@@ -38,7 +38,7 @@ pipeline {
 
         stage('Configure kubectl') {
             steps {
-                withAWS(credentials: 'aws-jenkins-credential-id', region: "${AWS_REGION}") {
+                withAWS(credentials: 'AWS', region: "${AWS_REGION}") {
                     sh "aws eks --region $AWS_REGION update-kubeconfig --name $KUBE_CLUSTER"
                 }
             }
@@ -48,11 +48,11 @@ pipeline {
             steps {
                 script {
                     // Update the image in the deployment file dynamically
-                    sh "kubectl set image -f $DEPLOY_PATH/deployment.yaml my-app=$ECR_REPO:$IMAGE_TAG --record"
+                    sh "kubectl set image -f deployment.yaml my-app=$ECR_REPO:$IMAGE_TAG --record"
                     
                     // Apply the existing deployment and service YAML files
-                    sh "kubectl apply -f $DEPLOY_PATH/deployment.yaml"
-                    sh "kubectl apply -f $DEPLOY_PATH/service.yaml"
+                    sh "kubectl apply -f deployment.yaml"
+                    sh "kubectl apply -f service.yaml"
                     
                     // Wait for rollout to complete
                     sh "kubectl rollout status deployment/my-app"
