@@ -15,7 +15,7 @@ spec:
         app: nginx
     spec:
       containers:
-      - name: nginx
+      - name: "my-app"
         image: 460928920964.dkr.ecr.ap-south-1.amazonaws.com/hari:V1
         ports:
         - containerPort: 5000
