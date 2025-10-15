@@ -19,32 +19,23 @@ pipeline {
             steps {
                 withCredentials([[
                     $class: 'AmazonWebServicesCredentialsBinding',
-                    credentialsId: 'AWS'  // Use your Jenkins Credential ID
+                    credentialsId: 'AWS'
                 ]]) {
                     script {
-                        sh '''
-                        echo "Checking for existing ECR repo..."
-                        if ! aws ecr describe-repositories --repository-names $REPO_NAME --region $AWS_REGION > /dev/null 2>&1; then
-                            echo "ECR repo not found. Creating..."
-                            aws ecr create-repository --repository-name $REPO_NAME --region $AWS_REGION
-                        else
-                            echo "ECR repo already exists."
-                        fi
-
-                        export ECR_REPO=$(aws ecr describe-repositories --repository-names $REPO_NAME --region $AWS_REGION --query "repositories[0].repositoryUri" --output text)
-                        echo "ECR_REPO=$ECR_REPO" >> env.properties
-                        '''
+                        env.ECR_REPO = sh(
+                            script: '''
+                                if ! aws ecr describe-repositories --repository-names $REPO_NAME --region $AWS_REGION > /dev/null 2>&1; then
+                                    echo "ECR repo not found. Creating..."
+                                    aws ecr create-repository --repository-name $REPO_NAME --region $AWS_REGION
+                                else
+                                    echo "ECR repo already exists."
+                                fi
+                                aws ecr describe-repositories --repository-names $REPO_NAME --region $AWS_REGION --query "repositories[0].repositoryUri" --output text
+                            ''',
+                            returnStdout: true
+                        ).trim()
+                        echo "Using ECR repository: ${env.ECR_REPO}"
                     }
-                }
-            }
-        }
-
-        stage('Load ECR Repo Info') {
-            steps {
-                script {
-                    def props = readProperties file: 'env.properties'
-                    env.ECR_REPO = props['ECR_REPO']
-                    echo "Using ECR repository: ${ECR_REPO}"
                 }
             }
         }
@@ -52,7 +43,7 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    docker.build("${ECR_REPO}:${BUILD_NUMBER}")
+                    docker.build("${env.ECR_REPO}:${BUILD_NUMBER}")
                 }
             }
         }
@@ -61,7 +52,7 @@ pipeline {
             steps {
                 withCredentials([[
                     $class: 'AmazonWebServicesCredentialsBinding',
-                    credentialsId: 'AWS'  // Use your Jenkins Credential ID
+                    credentialsId: 'AWS'
                 ]]) {
                     sh '''
                     aws ecr get-login-password --region $AWS_REGION \
@@ -73,7 +64,7 @@ pipeline {
 
         stage('Push Image to ECR') {
             steps {
-                sh "docker push ${ECR_REPO}:${BUILD_NUMBER}"
+                sh "docker push ${env.ECR_REPO}:${BUILD_NUMBER}"
             }
         }
 
@@ -81,7 +72,7 @@ pipeline {
             steps {
                 withCredentials([[
                     $class: 'AmazonWebServicesCredentialsBinding',
-                    credentialsId: 'AWS'  // Use your Jenkins Credential ID
+                    credentialsId: 'AWS'
                 ]]) {
                     sh '''
                     aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME
