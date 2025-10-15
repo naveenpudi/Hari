@@ -45,6 +45,7 @@ pipeline {
                 withAWS(credentials: 'AWS', region: "${AWS_REGION}") {
                     script {
                         sh '''
+                            cd Hari
                             kubectl set image -f deployment.yaml my-app=${ECR_REPO}:${IMAGE_TAG} --local -o yaml > temp-deployment.yaml
                             kubectl apply -f temp-deployment.yaml
                             kubectl apply -f service.yaml
